@@ -4,5 +4,6 @@ public enum CollisionType {
     BALL_BLOCK,
     BALL_BORDER,
     BALL_PADDLE,
-    BALL_LOST
+    BALL_LOST,
+    LASER_BLOCK
 }

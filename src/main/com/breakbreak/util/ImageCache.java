@@ -44,7 +44,9 @@ public class ImageCache {
                 "block-green.jpg", "block-orange.jpg", "block-yellow.jpg",
                 "corner-bl.png", "corner-br.png", "corner-tl.png", "corner-tr.png",
                 "edge-b.png", "edge-l.png", "edge-r.png", "edge-t.png",
-                "heart.png", "heart-empty.png", "paddle.jpg", "powerups.png"
+                "heart.png", "heart-empty.png", "paddle.jpg", "powerups.png",
+                // Inyecciones mandatorias exigidas por la guía técnica del Entregable 4
+                "level.png", "score.png", "record.png", "live.png", "numbers.png"
         };
 
         // Lista de rutas físicas en disco donde IntelliJ aloja los recursos del proyecto

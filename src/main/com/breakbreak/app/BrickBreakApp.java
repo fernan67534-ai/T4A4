@@ -1,10 +1,10 @@
 package main.com.breakbreak.app;
 
 import main.com.breakbreak.components.*;
+import main.com.breakbreak.components.gameplay.*;
+import main.com.breakbreak.components.hud.*;
 import main.com.breakbreak.enums.State;
-import main.com.breakbreak.util.GameLoop;
-
-// IMPORTACIONES CORECTAS DE TUS INTERFACES DE EVENTOS Y OLEADAS
+import main.com.breakbreak.core.GameLoop;
 import main.com.breakbreak.util.GameEventListener;
 
 import javax.swing.*;
@@ -16,10 +16,15 @@ import java.util.List;
 
 public class BrickBreakApp extends JFrame implements GameEventListener {
 
+    private BackgroundComponent background; // Atributo global para el control dinámico dual de animaciones
+
     private final JLayeredPane gamePanel;
     private final JPanel sidebarPanel;
-    private final JLabel scoreValueLabel;
-    private final List<HeartComponent> hearts = new ArrayList<>();
+
+    private RecordPanel recordPanel;
+    private ScorePanel scorePanel;
+    private LivePanel livePanel;
+    private LevelPanel levelPanel;
 
     private final JButton playButton;
     private final JButton resetButton;
@@ -34,64 +39,51 @@ public class BrickBreakApp extends JFrame implements GameEventListener {
     private GameOverPanel gameOverPanel;
     private BonoSidebarPanel bonoSidebarPanel;
 
+    private int currentRecord = 0;
+    private int nivelProgreso = 1;
+
     public BrickBreakApp() {
-        // CONFIGURACIÓN DE LA VENTANA GENERAL (ANCHO DE JUEGO + SIDEBAR)
+        // CONFIGURACIÓN DE LA VENTANA GENERAL CON ALTO PREMIUM AMPLIADO PARA DAR SIMETRÍA
         setTitle("BREAKBREAK - PARADIS EDITION");
-        setSize(860, 680);
+        setSize(860, 780);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setResizable(false);
 
-        // Contenedor principal con diseño absoluto nulo para manejar capas manuales
         getContentPane().setLayout(null);
         getContentPane().setBackground(new Color(10, 10, 10));
 
-        // 1. LIENZO IZQUIERDO DE JUEGO (480x640)
+        // 1. LIENZO IZQUIERDO DE JUEGO ACTUALIZADO A LAS PROPORCIONES DE TU ARENA (480x740)
         gamePanel = new JLayeredPane();
-        gamePanel.setBounds(0, 0, 480, 640);
+        gamePanel.setBounds(0, 0, 480, 740);
         gamePanel.setLayout(null);
         getContentPane().add(gamePanel);
 
-        // 2. PANEL DERECHO DE SIDEBAR CONTROLADORA (380x640)
+        // 2. PANEL DERECHO DE SIDEBAR CONTROLADORA CON LAYOUT ABSOLUTO EXTENDIDO
         sidebarPanel = new JPanel();
-        sidebarPanel.setBounds(480, 0, 380, 640);
+        sidebarPanel.setBounds(480, 0, 380, 740);
         sidebarPanel.setBackground(new Color(20, 21, 23));
         sidebarPanel.setLayout(null);
+        sidebarPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK, 5));
         getContentPane().add(sidebarPanel);
 
-        // INICIALIZACIÓN DE COMPONENTES BASE DE FISICAS
-        // REEMPLAZO LÍNEA 63: Encapsula las dimensiones en un objeto Rectangle nativo
-        border = new BorderComponent(new Rectangle(0, 0, 480, 640));
-
+        border = new BorderComponent(new Rectangle(0, 0, 480, 740));
         Rectangle area = border.getInnerBounds();
 
-        ball = new BallComponent(227, 450, 26, 26);
-        paddle = new PaddleComponent(195, 540, 90, 20);
+        // Reposicionamiento inicial proporcional de actores móviles
+        ball = new BallComponent(227, 490, 26, 26);
+        paddle = new PaddleComponent(195, 600, 90, 20);
 
-        // Fondo animado cinemático de Shingeki no Kyojin
-        // REEMPLAZO LÍNEA 69: Encapsula las dimensiones en un objeto Rectangle nativo
-        // Pasa únicamente los dos enteros de dimensiones que solicita tu constructor
-        BackgroundComponent background = new BackgroundComponent(480, 640);
-
-
-
-
-
+        // Fondo animado cinemático unificado a la dimensión total de la arena (480x740)
+        background = new BackgroundComponent(480, 740);
         gamePanel.add(background, Integer.valueOf(-10)); // Capa Z más profunda
-        // =========================================================================
-        // ⚔️ AJUSTE GEOMÉTRICO SIMÉTRICO: MATRIZ TOTALMENTE CENTRADA (7 X 6)
-        // =========================================================================
-        // CORRECCIÓN: Agregamos [] para que Java entienda que es un arreglo de Strings válido
+
         String[] matrixColors = {"blue", "orange", "yellow", "aqua", "cyan", "green"};
         this.blocks = new BlockComponent[7][6];
 
-        // Recalculamos el ancho exacto para cubrir el lienzo interno:
-        // 416px / 6 columnas = 69 píxeles de ancho por bloque de forma exacta.
         int blockW = 69, blockH = 20;
-
-        // Desplazamiento horizontal inicial: sumamos un offset de 34px para saltar la columna izquierda
         int gridStartX = area.x + 3;
-        int gridStartY = area.y + 10; // Separación sutil y limpia del techo
+        int gridStartY = area.y + 15;
 
         java.util.Random randomCromatico = new java.util.Random();
 
@@ -109,28 +101,20 @@ public class BrickBreakApp extends JFrame implements GameEventListener {
             }
         }
 
-
-
-        // AGREGADO DE COMPONENTES MÓVILES AL LIENZO
         gamePanel.add(ball, Integer.valueOf(0));
         gamePanel.add(paddle, Integer.valueOf(0));
-        gamePanel.add(border, Integer.valueOf(5)); // Capa del marco de piedra superior
+        gamePanel.add(border, Integer.valueOf(5));
 
-        // =========================================================================
-        // GATILLO DE CAPTURA DE HARDWARE (SOLUCIÓN AL CONGELAMIENTO DEL CLIC)
-        // =========================================================================
         this.setFocusable(true);
         this.requestFocusInWindow();
         gamePanel.setFocusable(true);
         gamePanel.requestFocusInWindow();
 
-        // CONTROLADORES DE RASTREO DEL RATÓN SOBRE EL CANVAS IZQUIERDO
         gamePanel.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
             @Override
             public void mouseMoved(java.awt.event.MouseEvent e) {
                 if (gameLoop != null && (gameLoop.getState() == State.RUNNING || gameLoop.getState() == State.READY)) {
                     int newX = e.getX() - (paddle.getWidth() / 2);
-                    // Límites geométricos estrictos basados en tus marcos de piedra reales
                     if (newX < area.x) newX = area.x;
                     if (newX + paddle.getWidth() > area.x + area.width) newX = area.x + area.width - paddle.getWidth();
                     paddle.setLocation(newX, paddle.getY());
@@ -138,7 +122,6 @@ public class BrickBreakApp extends JFrame implements GameEventListener {
             }
         });
 
-        // GATILLO DE HARDWARE: Al hacer clic en el área de juego, se libera la pelota cristalizada
         gamePanel.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mousePressed(java.awt.event.MouseEvent e) {
@@ -148,95 +131,59 @@ public class BrickBreakApp extends JFrame implements GameEventListener {
             }
         });
 
-        // PANELES DE DERROTA Y MARCO IMPERIAL DENTRO DE LAS CAPAS FRONTALES
-        gameOverPanel = new GameOverPanel(0, 0, 480, 640);
-        gamePanel.add(gameOverPanel, Integer.valueOf(10)); // Frente absoluto
+        gameOverPanel = new GameOverPanel(0, 0, 480, 740);
+        gamePanel.add(gameOverPanel, Integer.valueOf(10));
 
-        // =========================================================================
-        // ❤️ REAJUSTE DE SIMETRÍA: ALINEACIÓN PERFECTA DE CORAZONES EN EL HUD
-        // =========================================================================
-        // Centramos los 3 corazones dentro de los 380px del Sidebar derecho.
-        // Cada corazón mide 32px de ancho con 15px de separación entre ellos.
-        int anchoTotalCorazones = (3 * 32) + (2 * 15); // 126px de ancho total del bloque de vidas
-        int heartStartX = (380 - anchoTotalCorazones) / 2; // Da un margen exacto de 127px a los lados
-
-        for (int i = 0; i < 3; i++) {
-            int posicionX = heartStartX + (i * (32 + 15)); // 32px de tamaño + 15px de separación espacial
-            int posicionY = 210; // Alineado verticalmente debajo de la etiqueta de texto
-
-            HeartComponent heart = new HeartComponent(posicionX, posicionY, true);
-            hearts.add(heart);
-            sidebarPanel.add(heart);
-        }
-
-
-
-
-
-
-        // INICIALIZACIÓN OFICIAL DEL MOTOR PRINCIPAL DE JUEGO (GAMELOOP)
-        gameLoop = new GameLoop(gamePanel, ball, paddle, border, blocks, hearts);
-        gameLoop.addListener(this);
-        // =========================================================================
-        // 📊 SECCIÓN DE TEXTOS Y RÓTULOS DEL SIDEBAR DERECHO
-        // =========================================================================
-        JLabel titleLabel = new JLabel("BREAKBREAK", SwingConstants.CENTER);
-        titleLabel.setFont(new Font("Monospaced", Font.BOLD, 28));
-        titleLabel.setForeground(Color.WHITE);
-        titleLabel.setBounds(0, 40, 380, 40);
-        sidebarPanel.add(titleLabel);
-
-        JLabel scoreTitleLabel = new JLabel("PUNTUACIÓN", SwingConstants.CENTER);
-        scoreTitleLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        scoreTitleLabel.setForeground(Color.GRAY);
-        scoreTitleLabel.setBounds(0, 100, 380, 20);
-        sidebarPanel.add(scoreTitleLabel);
-
-        scoreValueLabel = new JLabel("0000", SwingConstants.CENTER);
-        scoreValueLabel.setFont(new Font("Monospaced", Font.BOLD, 48));
-        scoreValueLabel.setForeground(Color.WHITE);
-        scoreValueLabel.setBounds(0, 120, 380, 50);
-        sidebarPanel.add(scoreValueLabel);
-
-        JLabel livesTitleLabel = new JLabel("VIDAS", SwingConstants.CENTER);
-        livesTitleLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        livesTitleLabel.setForeground(Color.GRAY);
-        livesTitleLabel.setBounds(0, 180, 380, 20);
-        sidebarPanel.add(livesTitleLabel);
-
-        // PANEL ESTÁTICO DE ANUNCIOS: Monitorea el feed de cápsulas de Attack on Titan
+        recordPanel = new RecordPanel();
+        scorePanel = new ScorePanel();
+        livePanel = new LivePanel();
+        levelPanel = new LevelPanel();
         bonoSidebarPanel = new BonoSidebarPanel();
-        bonoSidebarPanel.setBounds(30, 260, 320, 70);
-        sidebarPanel.add(bonoSidebarPanel);
-        gameLoop.setBonoSidebarPanel(bonoSidebarPanel);
 
-        // =========================================================================
-        // 🎛️ BOTONERA MILITAR PREMIUM CON ENFOQUE FLUIDO DE HARDWARE
-        // =========================================================================
         playButton = new MaterialButton("JUGAR");
-        playButton.setBounds(50, 360, 280, 45);
         playButton.setFont(new Font("Monospaced", Font.BOLD, 14));
-        playButton.setBackground(new Color(40, 45, 50)); // Gris acorazado
-        playButton.setForeground(Color.WHITE);
-        playButton.setFocusable(false); // EVITA EL TRABADO: No roba el foco del juego
-        sidebarPanel.add(playButton);
+        playButton.setFocusable(false);
 
         resetButton = new MaterialButton("REINICIAR");
-        resetButton.setBounds(50, 420, 280, 45);
         resetButton.setFont(new Font("Monospaced", Font.BOLD, 14));
-        resetButton.setBackground(new Color(50, 40, 40)); // Rojo óxido militar sutil
-        resetButton.setForeground(Color.WHITE);
-        resetButton.setFocusable(false); // EVITA EL TRABADO: No roba el foco del juego
+        resetButton.setFocusable(false);
         resetButton.setEnabled(false);
-        sidebarPanel.add(resetButton);
 
         exitButton = new MaterialButton("SALIR");
-        exitButton.setBounds(50, 480, 280, 45);
         exitButton.setFont(new Font("Monospaced", Font.BOLD, 14));
-        exitButton.setBackground(new Color(25, 25, 25)); // Carbón oscuro
-        exitButton.setForeground(Color.LIGHT_GRAY);
-        exitButton.setFocusable(false); // EVITA EL TRABADO: No roba el foco del juego
+        exitButton.setFocusable(false);
+
+        // =========================================================================
+        // 📊 COMPOSICIÓN SECUENCIAL Y ASIGNACIÓN GEOMÉTRICA SIMÉTRICA DEL SIDEBAR
+        // =========================================================================
+        recordPanel.setBounds(46, 10, 288, 136);
+        scorePanel.setBounds(46, 156, 288, 136);
+        livePanel.setBounds(70, 302, 240, 136);
+        levelPanel.setBounds(70, 448, 240, 136);
+
+        // 🔥 REPARACIÓN CRÍTICA: Se remueve la duplicidad y queda fijado a 65px de alto exactos
+        bonoSidebarPanel.setBounds(30, 595, 320, 65);
+
+        sidebarPanel.add(recordPanel);
+        sidebarPanel.add(scorePanel);
+        sidebarPanel.add(livePanel);
+        sidebarPanel.add(levelPanel);
+        sidebarPanel.add(bonoSidebarPanel);
+
+        // 🔄 REAJUSTE DE FLANCO: Desplazamos los botones hacia abajo (Y: 672) para equilibrar el espacio
+        playButton.setBounds(30, 672, 100, 42);
+        resetButton.setBounds(140, 672, 100, 42);
+        exitButton.setBounds(250, 672, 100, 42);
+
+        sidebarPanel.add(playButton);
+        sidebarPanel.add(resetButton);
         sidebarPanel.add(exitButton);
+        levelPanel.setLevel(nivelProgreso);
+
+        // INICIALIZACIÓN DEL MOTOR CENTRAL PASANDO UNA LISTA VACÍA POR COMPATIBILIDAD DE FIRMA
+        gameLoop = new GameLoop(gamePanel, ball, paddle, border, blocks, new ArrayList<>());
+        gameLoop.addListener(this);
+        gameLoop.setBonoSidebarPanel(bonoSidebarPanel);
 
         // =========================================================================
         // 🏁 LISTENERS OPERATIVOS BLINDADOS ANTI-CONGELAMIENTO
@@ -252,7 +199,6 @@ public class BrickBreakApp extends JFrame implements GameEventListener {
                     resetButton.setEnabled(true);
                 }
             }
-            // Retorna síncronamente el control táctico al lienzo de juego
             gamePanel.requestFocusInWindow();
         });
 
@@ -265,10 +211,6 @@ public class BrickBreakApp extends JFrame implements GameEventListener {
 
         exitButton.addActionListener(e -> System.exit(0));
 
-
-        resetButton.addActionListener(e -> gameLoop.resetGame());
-        exitButton.addActionListener(e -> System.exit(0));
-
         // Evento de foco de seguridad al abrir la ventana por primera vez
         addWindowListener(new WindowAdapter() {
             @Override
@@ -276,54 +218,121 @@ public class BrickBreakApp extends JFrame implements GameEventListener {
                 gamePanel.requestFocusInWindow();
             }
         });
+
+        // Cargar síncronamente el récord histórico real guardado desde el DatabaseManager
+        this.currentRecord = main.com.breakbreak.core.DatabaseManager.getInstance().getHighScore();
+        recordPanel.setRecord(currentRecord);
     }
 
     // =========================================================================
-    // IMPLEMENTACIÓN DE MÉTODOS DE LA INTERFAZ DE EVENTOS (LISTENERS)
+    // IMPLEMENTACIÓN DE MÉTODOS DE LA INTERFAZ DE EVENTOS (LISTENERS CON HUD)
     // =========================================================================
 
     @Override
     public void onScoreChanged(int currentScore) {
-        scoreValueLabel.setText(String.format("%04d", currentScore));
+        // Enlaza la lógica matemática de colisiones con los marcadores gráficos
+        scorePanel.setScore(currentScore);
+
+        if (currentScore > currentRecord) {
+            currentRecord = currentScore;
+            recordPanel.setRecord(currentRecord);
+            // Salva de inmediato el récord batido en caliente al almacenamiento local persistente
+            main.com.breakbreak.core.DatabaseManager.getInstance().guardarRecordHistorico(currentRecord);
+        }
     }
 
     @Override
     public void onLifeLost(int currentLives) {
+        livePanel.setLives(currentLives);
         playButton.setText("REANUDAR");
         gamePanel.requestFocusInWindow();
     }
 
     @Override
+    public void onLevelStarted(int levelNumber) {
+        this.nivelProgreso = levelNumber;
+        levelPanel.setLevel(levelNumber);
+    }
+
+    @Override
+    public void onCollisionOccurred(main.com.breakbreak.enums.CollisionType type) {}
+
+    @Override
     public void onVictory(int finalScore) {
         playButton.setEnabled(false);
+        playButton.setText("¡VICTORIA!");
+
+        // Transformación táctica del botón de reinicio en compuerta de avance
+        resetButton.setEnabled(true);
+        resetButton.setText("SIG. NIVEL");
+
+        // Purgamos listeners anteriores para evitar llamadas duplicadas en caliente
+        for (java.awt.event.ActionListener al : resetButton.getActionListeners()) {
+            resetButton.removeActionListener(al);
+        }
+
+        // Vinculamos de forma síncrona el gatillo del siguiente mapa infinito
+        resetButton.addActionListener(e -> avanzarSiguienteNivel());
+
         WinPanel winPanel = new WinPanel(finalScore);
         gamePanel.add(winPanel, Integer.valueOf(15)); // Frente absoluto por encima de todo
         gamePanel.revalidate();
         gamePanel.repaint();
     }
 
+    /**
+     * 🔥 REPARACIÓN CRÍTICA: Activa el botón de REINICIAR en el Game Over
+     * para permitirle al usuario volver a intentar la campaña militar de Paradis.
+     */
     @Override
     public void onGameOver(int finalScore) {
         gamePanel.setComponentZOrder(gameOverPanel, 0);
         gameOverPanel.setVisible(true);
+
         playButton.setEnabled(false);
+        playButton.setText("DERROTA");
+
+        // Habilitamos explícitamente el reinicio mecánico
+        resetButton.setEnabled(true);
+        resetButton.setText("REINICIAR");
+
         gamePanel.repaint();
     }
-
     @Override
     public void onReset() {
-        scoreValueLabel.setText("0000");
+        scorePanel.setScore(0);
+        livePanel.setLives(3); // Estado de salud base de la entrega
+
+        // Forzar reinicio explícito en Nivel 1
+        this.nivelProgreso = 1;
+        levelPanel.setLevel(1);
+
         gameOverPanel.setVisible(false);
 
-        playButton.setText("JUGAR"); // Restaura el letrero original nativo
+        // Purgamos listeners de victoria antes de restaurar el botón de reinicio común
+        for (java.awt.event.ActionListener al : resetButton.getActionListeners()) {
+            resetButton.removeActionListener(al);
+        }
+        resetButton.addActionListener(e -> {
+            if (gameLoop != null) gameLoop.resetGame();
+            gamePanel.requestFocusInWindow();
+        });
+
+        playButton.setText("JUGAR");
         playButton.setEnabled(true);
+        resetButton.setText("REINICIAR");
         resetButton.setEnabled(false);
 
         if (bonoSidebarPanel != null) {
             bonoSidebarPanel.reset();
         }
 
-        // Removemos pantallas de victoria de la ronda anterior si existieran
+        // 🔄 RESTAURACIÓN DUAL: Regresa al set de animación original de Shingeki no Kyojin
+        if (background != null) {
+            background.cambiarFondoPorNivel(1);
+        }
+
+        // Remoción limpia de paneles de victoria de la ronda anterior
         for (Component c : gamePanel.getComponents()) {
             if (c instanceof WinPanel) {
                 gamePanel.remove(c);
@@ -334,8 +343,79 @@ public class BrickBreakApp extends JFrame implements GameEventListener {
         paddle.setVisible(true);
         gamePanel.revalidate();
         gamePanel.repaint();
+        gamePanel.requestFocusInWindow();
+    }
 
-        // Solicita el foco para que el ratón y los clics respondan tras reiniciar
+    /**
+     * MÓDULO CONTRACTUAL ADAPTATIVO REPARADO: Remueve síncronamente los bloques del lienzo
+     * e inyecta la grilla bidimensional procedural infinita generada por la fábrica de bloques.
+     */
+    public void avanzarSiguienteNivel() {
+        nivelProgreso++;
+
+        // 1. Sincronizar el incremento numérico en la pantalla del LevelPanel (Muestra 02)
+        this.onLevelStarted(nivelProgreso);
+
+        // 🔄 MUTACIÓN PROCEDURAL: Conmuta de forma limpia hacia tus 22 nuevas imágenes al saltar al Nivel 2
+        if (background != null) {
+            background.cambiarFondoPorNivel(nivelProgreso);
+        }
+
+        // 2. Limpiar todos los bloques remanentes de Swing del JLayeredPane izquierdo
+        if (this.blocks != null) {
+            for (int r = 0; r < 7; r++) {
+                for (int c = 0; c < 6; c++) {
+                    if (this.blocks[r][c] != null) {
+                        gamePanel.remove(this.blocks[r][c]);
+                    }
+                }
+            }
+        }
+
+        // 3. Solicitar a la fábrica la construcción del mapa procedural infinito en la matriz bidimensional correcta
+        Rectangle area = border.getInnerBounds();
+        this.blocks = main.com.breakbreak.core.BlockFactory.generarNivelInfinito(
+                nivelProgreso, 69, 20, area.x + 3, area.y + 15
+        );
+
+        // 4. Poblar las colecciones e inyectar cada bloque JComponent al contenedor gráfico base (Capa 0)
+        blockList.clear();
+        for (int r = 0; r < 7; r++) {
+            for (int c = 0; c < 6; c++) {
+                BlockComponent b = this.blocks[r][c];
+                blockList.add(b);
+                gamePanel.add(b, Integer.valueOf(0));
+            }
+        }
+
+        // 5. Reiniciar coordenadas físicas y pasar la nueva matriz de memoria al GameLoop
+        gameLoop.resetGameParaSiguienteNivel(this.blocks);
+
+        // 6. Desvincular el comportamiento de avance y restaurar el botón de reinicio estándar de la botonera
+        for (java.awt.event.ActionListener al : resetButton.getActionListeners()) {
+            resetButton.removeActionListener(al);
+        }
+        resetButton.addActionListener(e -> {
+            if (gameLoop != null) gameLoop.resetGame();
+            gamePanel.requestFocusInWindow();
+        });
+
+        resetButton.setText("REINICIAR");
+        resetButton.setEnabled(false);
+        playButton.setText("JUGAR");
+        playButton.setEnabled(true);
+
+        // Remoción del letrero gráfico de victoria (WinPanel) del nivel anterior
+        for (Component c : gamePanel.getComponents()) {
+            if (c instanceof WinPanel) {
+                gamePanel.remove(c);
+            }
+        }
+
+        // Sincronizar repintado inmediato de Swing para evitar imágenes residuales
+        gamePanel.revalidate();
+        gamePanel.repaint();
         gamePanel.requestFocusInWindow();
     }
 }
+

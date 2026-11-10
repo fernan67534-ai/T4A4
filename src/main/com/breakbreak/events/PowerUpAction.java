@@ -1,6 +1,6 @@
 package main.com.breakbreak.events;
 
-import main.com.breakbreak.util.GameLoop;
+import main.com.breakbreak.core.GameLoop;
 
 @FunctionalInterface
 public interface PowerUpAction {

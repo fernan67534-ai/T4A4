@@ -1,7 +1,8 @@
 package main.com.breakbreak.events;
 
+import main.com.breakbreak.components.hud.BonoSidebarPanel;
 import main.com.breakbreak.enums.PowerUpType;
-import main.com.breakbreak.util.GameLoop;
+import main.com.breakbreak.core.GameLoop;
 import java.awt.Color;
 import java.util.EnumMap;
 import java.util.Map;
@@ -138,7 +139,7 @@ public final class PowerUpRegistry {
             for (java.awt.Window window : java.awt.Window.getWindows()) {
                 if (window instanceof javax.swing.JFrame && window.isShowing()) {
                     javax.swing.JFrame frame = (javax.swing.JFrame) window;
-                    main.com.breakbreak.components.BonoSidebarPanel panel = buscarBonoPanel(frame.getContentPane());
+                    BonoSidebarPanel panel = buscarBonoPanel(frame.getContentPane());
                     if (panel != null) {
                         game.setBonoSidebarPanel(panel);
                         panel.setBonoActivo(titulo, beneficio, colorBorde);
@@ -149,13 +150,13 @@ public final class PowerUpRegistry {
         } catch (Exception ignored) {}
     }
 
-    private static main.com.breakbreak.components.BonoSidebarPanel buscarBonoPanel(java.awt.Container container) {
+    private static BonoSidebarPanel buscarBonoPanel(java.awt.Container container) {
         for (java.awt.Component comp : container.getComponents()) {
-            if (comp instanceof main.com.breakbreak.components.BonoSidebarPanel) {
-                return (main.com.breakbreak.components.BonoSidebarPanel) comp;
+            if (comp instanceof BonoSidebarPanel) {
+                return (BonoSidebarPanel) comp;
             }
             if (comp instanceof java.awt.Container) {
-                main.com.breakbreak.components.BonoSidebarPanel encontrado = buscarBonoPanel((java.awt.Container) comp);
+                BonoSidebarPanel encontrado = buscarBonoPanel((java.awt.Container) comp);
                 if (encontrado != null) return encontrado;
             }
         }
